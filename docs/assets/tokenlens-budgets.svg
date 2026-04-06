@@ -1,0 +1,35 @@
+<svg width="1280" height="720" viewBox="0 0 1280 720" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1280" height="720" rx="28" fill="#EEF3F9"/>
+  <rect x="24" y="24" width="1232" height="672" rx="24" fill="#F8F5EF" stroke="#E6DDCF"/>
+  <text x="72" y="94" fill="#B45309" font-size="15" font-family="Arial" letter-spacing="4">BUDGET GUARDRAILS</text>
+  <text x="72" y="138" fill="#111827" font-size="40" font-family="Arial" font-weight="700">Turn attribution into policy.</text>
+  <rect x="72" y="182" width="446" height="462" rx="26" fill="white" stroke="#E5E7EB"/>
+  <text x="104" y="232" fill="#111827" font-size="30" font-family="Arial" font-weight="700">Create or update a budget</text>
+  <rect x="104" y="276" width="382" height="64" rx="18" fill="#F8FAFC"/>
+  <text x="126" y="316" fill="#6B7280" font-size="20" font-family="Arial">Feature: summaries</text>
+  <rect x="104" y="360" width="382" height="64" rx="18" fill="#F8FAFC"/>
+  <text x="126" y="400" fill="#6B7280" font-size="20" font-family="Arial">Daily limit: $25</text>
+  <rect x="104" y="444" width="382" height="64" rx="18" fill="#F8FAFC"/>
+  <text x="126" y="484" fill="#6B7280" font-size="20" font-family="Arial">Monthly limit: $400</text>
+  <rect x="104" y="528" width="382" height="64" rx="18" fill="#F8FAFC"/>
+  <text x="126" y="568" fill="#6B7280" font-size="20" font-family="Arial">Action: block</text>
+  <rect x="104" y="608" width="220" height="56" rx="28" fill="#0F3D5E"/>
+  <text x="150" y="644" fill="white" font-size="20" font-family="Arial" font-weight="700">Save budget</text>
+  <rect x="548" y="182" width="660" height="462" rx="26" fill="white" stroke="#E5E7EB"/>
+  <text x="580" y="232" fill="#111827" font-size="30" font-family="Arial" font-weight="700">Configured budgets</text>
+  <rect x="580" y="276" width="596" height="92" rx="22" fill="#F8FAFC"/>
+  <text x="608" y="320" fill="#111827" font-size="24" font-family="Arial" font-weight="700">summaries</text>
+  <text x="608" y="348" fill="#6B7280" font-size="18" font-family="Arial">$25/day • $400/month</text>
+  <rect x="1048" y="300" width="96" height="32" rx="16" fill="#F4E6CF"/>
+  <text x="1076" y="322" fill="#B45309" font-size="14" font-family="Arial" font-weight="700">BLOCK</text>
+  <rect x="580" y="388" width="596" height="92" rx="22" fill="#F8FAFC"/>
+  <text x="608" y="432" fill="#111827" font-size="24" font-family="Arial" font-weight="700">chat</text>
+  <text x="608" y="460" fill="#6B7280" font-size="18" font-family="Arial">$40/day • $700/month</text>
+  <rect x="1048" y="412" width="96" height="32" rx="16" fill="#F4E6CF"/>
+  <text x="1078" y="434" fill="#B45309" font-size="14" font-family="Arial" font-weight="700">ALERT</text>
+  <rect x="580" y="500" width="596" height="92" rx="22" fill="#F8FAFC"/>
+  <text x="608" y="544" fill="#111827" font-size="24" font-family="Arial" font-weight="700">translation</text>
+  <text x="608" y="572" fill="#6B7280" font-size="18" font-family="Arial">$18/day • $260/month</text>
+  <rect x="1048" y="524" width="96" height="32" rx="16" fill="#F4E6CF"/>
+  <text x="1078" y="546" fill="#B45309" font-size="14" font-family="Arial" font-weight="700">ALERT</text>
+</svg>

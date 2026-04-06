@@ -1,6 +1,24 @@
 # TokenLens
 
+[![CI](https://img.shields.io/github/actions/workflow/status/crac-ksaw/tokenlens/test.yml?branch=main&label=ci)](https://github.com/crac-ksaw/tokenlens/actions/workflows/test.yml)
+[![Deploy](https://img.shields.io/github/actions/workflow/status/crac-ksaw/tokenlens/deploy.yml?branch=main&label=deploy)](https://github.com/crac-ksaw/tokenlens/actions/workflows/deploy.yml)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.9-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![React](https://img.shields.io/badge/React-18-149ECA?logo=react&logoColor=white)](https://react.dev/)
+[![Fastify](https://img.shields.io/badge/Fastify-5-000000?logo=fastify&logoColor=white)](https://fastify.dev/)
+[![Python](https://img.shields.io/badge/Python-Optimizer-3776AB?logo=python&logoColor=white)](https://www.python.org/)
+[![License](https://img.shields.io/badge/license-MIT-0F766E)](#)
+
 TokenLens is a cost intelligence platform for teams shipping LLM features in production. It captures usage events from application code, enriches them asynchronously, stores them for analytics, and surfaces spend, anomalies, budgets, and optimization opportunities in a dashboard.
+
+## Screenshots
+
+### Cost overview
+
+![TokenLens overview dashboard](docs/assets/tokenlens-overview.svg)
+
+### Budget guardrails
+
+![TokenLens budgets dashboard](docs/assets/tokenlens-budgets.svg)
 
 ## What It Does
 
@@ -26,25 +44,45 @@ TokenLens is organized as a pnpm monorepo with an event-driven backend:
 7. The dashboard consumes the API for analytics and controls.
 8. The optimizer analyzes usage patterns and writes model recommendations back to PostgreSQL.
 
+## System Diagram
+
+![TokenLens system diagram](docs/assets/tokenlens-system-diagram.svg)
+
+```mermaid
+flowchart LR
+    A[Customer Application] --> B[TokenLens SDK]
+    B --> C[Fastify API]
+    C --> D[Redis Streams]
+    D --> E[Worker]
+    E --> F[ClickHouse]
+    E --> G[PostgreSQL]
+    E --> H[Redis budget counters / kill-switch]
+    C --> I[React Dashboard]
+    F --> C
+    G --> C
+    F --> J[Python Optimizer]
+    J --> G
+```
+
 ## Repository Layout
 
 ```text
 tokenlens/
-├─ apps/
-│  ├─ api/         Fastify API gateway
-│  ├─ optimizer/   Python batch optimizer
-│  ├─ web/         React + Vite dashboard
-│  └─ worker/      Redis Streams enrichment worker
-├─ packages/
-│  ├─ sdk/         Provider-wrapping TypeScript SDK
-│  └─ shared/      Shared types, schemas, pricing, helpers
-├─ infra/
-│  ├─ clickhouse/  ClickHouse schema
-│  ├─ docker/      Service Dockerfiles
-│  ├─ k8s/         Kubernetes manifests
-│  ├─ postgres/    SQL migrations
-│  └─ terraform/   AWS infrastructure
-└─ scripts/        Migration and seed helpers
+|-- apps/
+|   |-- api/         Fastify API gateway
+|   |-- optimizer/   Python batch optimizer
+|   |-- web/         React + Vite dashboard
+|   `-- worker/      Redis Streams enrichment worker
+|-- packages/
+|   |-- sdk/         Provider-wrapping TypeScript SDK
+|   `-- shared/      Shared types, schemas, pricing, helpers
+|-- infra/
+|   |-- clickhouse/  ClickHouse schema
+|   |-- docker/      Service Dockerfiles
+|   |-- k8s/         Kubernetes manifests
+|   |-- postgres/    SQL migrations
+|   `-- terraform/   AWS infrastructure
+`-- scripts/         Migration and seed helpers
 ```
 
 ## Core Components
@@ -224,7 +262,7 @@ Current automated verification includes:
 
 - SDK unit tests
 - API integration tests with Fastify inject
-- Worker unit/integration-style tests around enrichment and budget logic
+- Worker unit and integration-style tests around enrichment and budget logic
 - Optimizer pytest coverage for recommendation generation and forecasting
 
 ## Data Flow

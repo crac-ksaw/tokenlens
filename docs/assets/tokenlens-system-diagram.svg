@@ -1,0 +1,41 @@
+<svg width="1280" height="720" viewBox="0 0 1280 720" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="1280" height="720" rx="24" fill="#FAF7F0"/>
+  <text x="60" y="76" fill="#111827" font-size="42" font-family="Arial" font-weight="700">TokenLens system diagram</text>
+  <text x="60" y="110" fill="#6B7280" font-size="20" font-family="Arial">Async ingestion, enrichment, analytics, and optimization pipeline</text>
+  <rect x="60" y="170" width="210" height="92" rx="20" fill="#0F3D5E"/>
+  <text x="102" y="208" fill="white" font-size="24" font-family="Arial" font-weight="700">Customer App</text>
+  <text x="90" y="236" fill="#DDEAF4" font-size="16" font-family="Arial">OpenAI / Anthropic / Gemini</text>
+  <rect x="326" y="170" width="220" height="92" rx="20" fill="#1E5D89"/>
+  <text x="372" y="208" fill="white" font-size="24" font-family="Arial" font-weight="700">TokenLens SDK</text>
+  <text x="362" y="236" fill="#DDEAF4" font-size="16" font-family="Arial">async event publish</text>
+  <rect x="602" y="170" width="220" height="92" rx="20" fill="#B45309"/>
+  <text x="647" y="208" fill="white" font-size="24" font-family="Arial" font-weight="700">API Gateway</text>
+  <text x="650" y="236" fill="#F8E7D2" font-size="16" font-family="Arial">auth + ingest + analytics</text>
+  <rect x="878" y="170" width="220" height="92" rx="20" fill="#14532D"/>
+  <text x="937" y="208" fill="white" font-size="24" font-family="Arial" font-weight="700">Redis Streams</text>
+  <text x="925" y="236" fill="#DCFCE7" font-size="16" font-family="Arial">queue + dedupe + counters</text>
+  <rect x="470" y="350" width="240" height="110" rx="24" fill="white" stroke="#CBD5E1" stroke-width="2"/>
+  <text x="542" y="394" fill="#111827" font-size="26" font-family="Arial" font-weight="700">Worker</text>
+  <text x="500" y="424" fill="#475569" font-size="17" font-family="Arial">cost enrichment</text>
+  <text x="500" y="448" fill="#475569" font-size="17" font-family="Arial">anomaly detection</text>
+  <rect x="120" y="540" width="250" height="110" rx="24" fill="white" stroke="#CBD5E1" stroke-width="2"/>
+  <text x="186" y="584" fill="#111827" font-size="26" font-family="Arial" font-weight="700">PostgreSQL</text>
+  <text x="156" y="614" fill="#475569" font-size="17" font-family="Arial">users, budgets, alerts, recs</text>
+  <rect x="514" y="540" width="250" height="110" rx="24" fill="white" stroke="#CBD5E1" stroke-width="2"/>
+  <text x="584" y="584" fill="#111827" font-size="26" font-family="Arial" font-weight="700">ClickHouse</text>
+  <text x="565" y="614" fill="#475569" font-size="17" font-family="Arial">llm_events analytics store</text>
+  <rect x="908" y="540" width="250" height="110" rx="24" fill="white" stroke="#CBD5E1" stroke-width="2"/>
+  <text x="968" y="584" fill="#111827" font-size="26" font-family="Arial" font-weight="700">Optimizer</text>
+  <text x="940" y="614" fill="#475569" font-size="17" font-family="Arial">model routing recommendations</text>
+  <rect x="1038" y="350" width="170" height="110" rx="24" fill="white" stroke="#CBD5E1" stroke-width="2"/>
+  <text x="1075" y="394" fill="#111827" font-size="26" font-family="Arial" font-weight="700">Web App</text>
+  <text x="1064" y="424" fill="#475569" font-size="17" font-family="Arial">dashboard UI</text>
+  <path d="M270 216H326" stroke="#334155" stroke-width="4" stroke-linecap="round"/>
+  <path d="M546 216H602" stroke="#334155" stroke-width="4" stroke-linecap="round"/>
+  <path d="M822 216H878" stroke="#334155" stroke-width="4" stroke-linecap="round"/>
+  <path d="M988 262V320H590V350" stroke="#334155" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M710 404H1038" stroke="#334155" stroke-width="4" stroke-linecap="round"/>
+  <path d="M520 460L290 540" stroke="#334155" stroke-width="4" stroke-linecap="round"/>
+  <path d="M590 460V540" stroke="#334155" stroke-width="4" stroke-linecap="round"/>
+  <path d="M664 460L938 540" stroke="#334155" stroke-width="4" stroke-linecap="round"/>
+</svg>
