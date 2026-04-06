@@ -1,0 +1,33 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tokenlens-api
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: tokenlens-api
+  template:
+    metadata:
+      labels:
+        app: tokenlens-api
+    spec:
+      containers:
+        - name: api
+          image: tokenlens-api:latest
+          ports:
+            - containerPort: 3001
+          envFrom:
+            - secretRef:
+                name: tokenlens-secrets
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: tokenlens-api
+spec:
+  selector:
+    app: tokenlens-api
+  ports:
+    - port: 3001
+      targetPort: 3001

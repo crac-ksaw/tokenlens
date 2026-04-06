@@ -1,0 +1,550 @@
+{
+  "project": {
+    "name": "TokenLens",
+    "tagline": "LLM Cost Intelligence Platform",
+    "description": "A production-grade SaaS platform that provides per-feature, per-user, per-model cost attribution for teams running LLM APIs in production. Drop-in SDK wrapper + real-time analytics dashboard + intelligent cost optimization engine.",
+    "version": "1.0.0",
+    "target_users": "Engineering leads and PMs at AI-first startups and SaaS companies using OpenAI, Anthropic, Gemini, or AWS Bedrock",
+    "business_value": "Customers reduce LLM spend 20-40% after gaining attribution visibility. Average savings: $8k-$80k/month.",
+    "monetization": "$99-$499/month SaaS. Land-and-expand per workspace."
+  },
+
+  "architecture": {
+    "style": "Event-driven microservices with async ingestion pipeline",
+    "principle": "Zero latency added to LLM calls. All instrumentation is async and non-blocking.",
+    "zones": {
+      "zone_1_client": {
+        "name": "Client layer",
+        "description": "Customer-facing SDK and tagging logic that wraps LLM provider clients",
+        "components": {
+          "typescript_sdk": {
+            "name": "TypeScript SDK",
+            "role": "Drop-in wrapper around openai, @anthropic-ai/sdk, @google/generative-ai, @aws-sdk/client-bedrock-runtime",
+            "package_name": "@tokenlens/sdk",
+            "key_behavior": "Intercepts every LLM API call, attaches metadata, proxies to real provider, captures response, publishes event to ingest pipeline async — caller gets response immediately with zero added latency"
+          },
+          "auto_tagger": {
+            "name": "Auto-tagging layer",
+            "role": "Attaches structured metadata to every event",
+            "fields": ["feature", "userId", "sessionId", "environment", "model", "provider", "traceId", "timestamp"]
+          },
+          "providers_supported": ["OpenAI", "Anthropic", "Google Gemini", "AWS Bedrock"]
+        }
+      },
+      "zone_2_ingest": {
+        "name": "Ingest pipeline",
+        "description": "Async event queue, enrichment, anomaly detection, and budget enforcement",
+        "components": {
+          "redis_streams": {
+            "name": "Redis Streams",
+            "role": "Primary event queue with consumer groups and at-least-once delivery",
+            "stream_name": "tokenlens:events",
+            "consumer_group": "enrichment-workers",
+            "dedup_strategy": "traceId-based idempotency key with 5-minute TTL"
+          },
+          "enrichment_worker": {
+            "name": "Enrichment worker",
+            "role": "Reads from Redis stream, calculates USD cost from token counts using live pricing table, writes enriched event to ClickHouse",
+            "runtime": "Node.js",
+            "calculates": ["usd_cost", "cost_per_1k_tokens", "latency_ms", "tokens_prompt", "tokens_completion", "tokens_total"]
+          },
+          "anomaly_detector": {
+            "name": "Anomaly detector",
+            "role": "Compares current event cost against 7-day rolling baseline using Z-score. Fires alert if Z > 3.0",
+            "algorithm": "Z-score against rolling 7-day per-feature baseline",
+            "threshold": 3.0
+          },
+          "budget_guard": {
+            "name": "Budget guardrail",
+            "role": "Checks per-feature and per-workspace daily/monthly budget limits. Sets a kill-switch flag in Redis if exceeded",
+            "kill_switch_key_pattern": "tokenlens:killswitch:{workspaceId}:{feature}"
+          }
+        }
+      },
+      "zone_3_storage": {
+        "name": "Storage layer",
+        "description": "Time-series analytics store, relational config store, routing cache, and ML optimizer",
+        "components": {
+          "clickhouse": {
+            "name": "ClickHouse",
+            "role": "Primary analytical store for all LLM events. Handles time-series aggregations at high throughput.",
+            "why_not_postgres": "ClickHouse does columnar compression and time-series aggregations 100-1000x faster than Postgres for this workload",
+            "main_table": "llm_events",
+            "schema": {
+              "table": "llm_events",
+              "engine": "MergeTree()",
+              "order_by": ["workspace_id", "feature", "toStartOfHour(created_at)"],
+              "columns": {
+                "event_id": "UUID",
+                "workspace_id": "String",
+                "feature": "String",
+                "user_id": "String",
+                "session_id": "String",
+                "environment": "Enum8('production'=1,'staging'=2,'development'=3)",
+                "provider": "String",
+                "model": "String",
+                "tokens_prompt": "UInt32",
+                "tokens_completion": "UInt32",
+                "tokens_total": "UInt32",
+                "usd_cost": "Float64",
+                "latency_ms": "UInt32",
+                "created_at": "DateTime"
+              }
+            }
+          },
+          "postgresql": {
+            "name": "PostgreSQL",
+            "role": "Relational store for accounts, workspaces, API keys, billing, budgets, alert configs",
+            "main_tables": ["workspaces", "users", "api_keys", "budgets", "alert_configs", "billing_subscriptions"]
+          },
+          "redis_router_cache": {
+            "name": "Model router cache",
+            "role": "Stores model routing rules and kill-switch flags. Sub-millisecond read for hot path.",
+            "key_patterns": {
+              "routing_rule": "tokenlens:route:{workspaceId}:{feature}",
+              "kill_switch": "tokenlens:killswitch:{workspaceId}:{feature}",
+              "budget_counter": "tokenlens:budget:{workspaceId}:{feature}:{YYYY-MM-DD}"
+            }
+          },
+          "python_optimizer": {
+            "name": "Python optimization engine",
+            "role": "Nightly batch job that analyzes prompt patterns, identifies downgrade candidates, and writes recommendations to Postgres",
+            "runtime": "Python 3.12",
+            "libraries": ["pandas", "scikit-learn", "tiktoken", "anthropic", "openai"],
+            "outputs": ["model_swap_recommendations", "prompt_compression_suggestions", "cost_forecast_30d"]
+          }
+        }
+      },
+      "zone_4_output": {
+        "name": "Output layer",
+        "description": "API gateway, dashboard, forecasting, and alert delivery",
+        "components": {
+          "api_gateway": {
+            "name": "Fastify API gateway",
+            "role": "Main backend API consumed by dashboard and external integrations",
+            "framework": "Fastify (Node.js)",
+            "api_types": ["REST", "GraphQL (via Mercurius)"],
+            "auth": "JWT + workspace-scoped API keys",
+            "rate_limiting": "Per-workspace, 1000 req/min default"
+          },
+          "dashboard": {
+            "name": "React dashboard",
+            "role": "Primary UI for cost analytics",
+            "framework": "React 18 + Vite",
+            "charts": "Recharts",
+            "main_views": ["Cost overview", "Feature breakdown", "User breakdown", "Model comparison", "Anomaly log", "Budget settings", "Optimization suggestions"]
+          },
+          "forecasting": {
+            "name": "Cost forecasting",
+            "role": "Projects monthly spend with P95 confidence interval based on rolling usage",
+            "method": "Linear regression on 30-day daily cost series with seasonality adjustment"
+          },
+          "alert_webhooks": {
+            "name": "Alert delivery",
+            "channels": ["Slack webhook", "PagerDuty Events API", "Email (Resend)", "Generic webhook (POST JSON)"]
+          }
+        }
+      }
+    }
+  },
+
+  "tech_stack": {
+    "sdk": {
+      "language": "TypeScript",
+      "runtime": "Node.js 20 LTS",
+      "package_manager": "pnpm",
+      "key_packages": ["openai", "@anthropic-ai/sdk", "@google/generative-ai", "ioredis", "uuid", "zod"]
+    },
+    "backend_api": {
+      "language": "TypeScript",
+      "framework": "Fastify 4",
+      "orm": "Drizzle ORM (Postgres)",
+      "graphql": "Mercurius",
+      "auth": "jsonwebtoken + bcrypt",
+      "validation": "Zod",
+      "key_packages": ["fastify", "drizzle-orm", "pg", "ioredis", "mercurius", "zod", "jsonwebtoken", "resend"]
+    },
+    "ingest_worker": {
+      "language": "TypeScript",
+      "runtime": "Node.js 20 LTS",
+      "key_packages": ["ioredis", "@clickhouse/client", "drizzle-orm", "pg"]
+    },
+    "optimizer": {
+      "language": "Python 3.12",
+      "key_packages": ["pandas", "scikit-learn", "tiktoken", "anthropic", "openai", "psycopg2-binary", "python-dotenv", "schedule"]
+    },
+    "frontend": {
+      "framework": "React 18",
+      "build_tool": "Vite 5",
+      "styling": "Tailwind CSS 3",
+      "charts": "Recharts",
+      "state": "Zustand",
+      "data_fetching": "TanStack Query v5",
+      "routing": "React Router v6",
+      "key_packages": ["react", "recharts", "zustand", "@tanstack/react-query", "react-router-dom", "axios", "date-fns"]
+    },
+    "databases": {
+      "analytical": "ClickHouse 24 (self-hosted via Docker or ClickHouse Cloud)",
+      "relational": "PostgreSQL 16",
+      "cache_queue": "Redis 7 (Redis Streams + caching)"
+    },
+    "infrastructure": {
+      "containerization": "Docker + Docker Compose (local dev)",
+      "orchestration": "Kubernetes (production) or ECS Fargate",
+      "iac": "Terraform",
+      "cloud": "AWS (primary)",
+      "cdn_ssl": "CloudFront + ACM",
+      "secrets": "AWS Secrets Manager",
+      "ci_cd": "GitHub Actions"
+    },
+    "observability": {
+      "metrics": "Prometheus + Grafana",
+      "logging": "Pino (structured JSON) + CloudWatch",
+      "tracing": "OpenTelemetry"
+    }
+  },
+
+  "repository_structure": {
+    "type": "pnpm monorepo",
+    "root": "tokenlens/",
+    "layout": {
+      "packages/sdk": "TypeScript SDK (@tokenlens/sdk) — published to npm",
+      "packages/shared": "Shared types, Zod schemas, pricing tables",
+      "apps/api": "Fastify API gateway",
+      "apps/worker": "Ingest + enrichment worker (reads Redis Streams)",
+      "apps/optimizer": "Python optimization engine (nightly batch)",
+      "apps/web": "React dashboard (Vite)",
+      "infra/terraform": "AWS infrastructure definitions",
+      "infra/docker": "Dockerfiles for each service",
+      "infra/k8s": "Kubernetes manifests",
+      "infra/clickhouse": "ClickHouse migrations and schema",
+      "infra/postgres": "Drizzle migrations",
+      "scripts": "Seed scripts, local dev helpers",
+      ".github/workflows": "CI/CD pipelines"
+    }
+  },
+
+  "database_schemas": {
+    "clickhouse": {
+      "llm_events": {
+        "ddl": "CREATE TABLE llm_events (event_id UUID DEFAULT generateUUIDv4(), workspace_id String, feature String, user_id String, session_id String, environment Enum8('production'=1,'staging'=2,'development'=3), provider String, model String, tokens_prompt UInt32, tokens_completion UInt32, tokens_total UInt32, usd_cost Float64, latency_ms UInt32, created_at DateTime DEFAULT now()) ENGINE = MergeTree() ORDER BY (workspace_id, feature, toStartOfHour(created_at)) PARTITION BY toYYYYMM(created_at) TTL created_at + INTERVAL 2 YEAR"
+      }
+    },
+    "postgresql": {
+      "workspaces": "id uuid PK, name text, slug text UNIQUE, plan text, created_at timestamptz",
+      "users": "id uuid PK, workspace_id uuid FK, email text UNIQUE, password_hash text, role text, created_at timestamptz",
+      "api_keys": "id uuid PK, workspace_id uuid FK, key_hash text UNIQUE, label text, last_used_at timestamptz, created_at timestamptz",
+      "budgets": "id uuid PK, workspace_id uuid FK, feature text, daily_limit_usd numeric, monthly_limit_usd numeric, action text (alert|block), created_at timestamptz",
+      "alert_configs": "id uuid PK, workspace_id uuid FK, channel text, webhook_url text, enabled bool, created_at timestamptz",
+      "recommendations": "id uuid PK, workspace_id uuid FK, feature text, current_model text, suggested_model text, estimated_saving_usd numeric, rationale text, created_at timestamptz"
+    }
+  },
+
+  "sdk_api": {
+    "installation": "npm install @tokenlens/sdk",
+    "usage_example": {
+      "description": "Drop-in replacement — wrap your existing LLM client once and all calls are automatically tracked",
+      "code": "import { TokenLens } from '@tokenlens/sdk';\nimport OpenAI from 'openai';\n\nconst client = new TokenLens({\n  apiKey: process.env.TOKENLENS_API_KEY,\n  provider: 'openai',\n  feature: 'summarization',\n  environment: 'production',\n});\n\n// Identical to calling openai directly\nconst completion = await client.chat.completions.create({\n  model: 'gpt-4o',\n  messages: [{ role: 'user', content: 'Summarize this...' }],\n});\n// Event published to ingest pipeline async — caller is not blocked"
+    },
+    "context_override": "client.withContext({ feature: 'translation', userId: req.user.id }).chat.completions.create(...)"
+  },
+
+  "api_endpoints": {
+    "auth": {
+      "POST /auth/register": "Create workspace + first user",
+      "POST /auth/login": "Returns JWT",
+      "POST /auth/api-keys": "Create API key for SDK auth"
+    },
+    "ingest": {
+      "POST /ingest/event": "Receive event from SDK (internal, authenticated by API key)"
+    },
+    "analytics": {
+      "GET /analytics/overview": "Total cost, tokens, calls for workspace over time range",
+      "GET /analytics/by-feature": "Cost breakdown grouped by feature",
+      "GET /analytics/by-user": "Cost breakdown grouped by userId",
+      "GET /analytics/by-model": "Cost breakdown grouped by model",
+      "GET /analytics/timeseries": "Hourly/daily cost series for charting",
+      "GET /analytics/anomalies": "Recent anomaly events",
+      "GET /analytics/forecast": "30-day cost forecast with P95 band"
+    },
+    "budgets": {
+      "GET /budgets": "List workspace budgets",
+      "POST /budgets": "Create or update feature budget",
+      "DELETE /budgets/:id": "Remove budget"
+    },
+    "recommendations": {
+      "GET /recommendations": "List optimizer suggestions with estimated savings"
+    },
+    "alerts": {
+      "GET /alerts/config": "Get alert channel config",
+      "PUT /alerts/config": "Update alert channels"
+    }
+  },
+
+  "environment_variables": {
+    "sdk": {
+      "TOKENLENS_API_KEY": "Workspace API key for SDK authentication",
+      "TOKENLENS_INGEST_URL": "URL of the ingest endpoint (default: https://ingest.tokenlens.io)"
+    },
+    "api": {
+      "DATABASE_URL": "postgresql://user:pass@host:5432/tokenlens",
+      "CLICKHOUSE_URL": "http://user:pass@host:8123/tokenlens",
+      "REDIS_URL": "redis://host:6379",
+      "JWT_SECRET": "Random 256-bit secret",
+      "PORT": "3001"
+    },
+    "worker": {
+      "CLICKHOUSE_URL": "Same as api",
+      "REDIS_URL": "Same as api",
+      "DATABASE_URL": "Same as api"
+    },
+    "optimizer": {
+      "DATABASE_URL": "Same as api",
+      "OPENAI_API_KEY": "For test calls during optimization analysis",
+      "ANTHROPIC_API_KEY": "For test calls during optimization analysis"
+    },
+    "web": {
+      "VITE_API_URL": "https://api.tokenlens.io",
+      "VITE_WS_URL": "wss://api.tokenlens.io"
+    }
+  },
+
+  "docker_compose": {
+    "description": "Full local dev stack",
+    "services": {
+      "postgres": {
+        "image": "postgres:16-alpine",
+        "port": "5432:5432",
+        "env": { "POSTGRES_DB": "tokenlens", "POSTGRES_USER": "tokenlens", "POSTGRES_PASSWORD": "secret" }
+      },
+      "redis": {
+        "image": "redis:7-alpine",
+        "port": "6379:6379"
+      },
+      "clickhouse": {
+        "image": "clickhouse/clickhouse-server:24",
+        "ports": ["8123:8123", "9000:9000"],
+        "volumes": ["clickhouse_data:/var/lib/clickhouse"]
+      },
+      "api": {
+        "build": "./apps/api",
+        "port": "3001:3001",
+        "depends_on": ["postgres", "redis", "clickhouse"],
+        "env_file": ".env"
+      },
+      "worker": {
+        "build": "./apps/worker",
+        "depends_on": ["redis", "clickhouse", "postgres"],
+        "env_file": ".env",
+        "restart": "unless-stopped"
+      },
+      "web": {
+        "build": "./apps/web",
+        "port": "3000:3000",
+        "depends_on": ["api"]
+      }
+    }
+  },
+
+  "deployment": {
+    "strategy": "Blue-green deployment on AWS ECS Fargate with RDS Postgres and ElastiCache Redis. ClickHouse on ClickHouse Cloud or self-managed EC2.",
+    "services": {
+      "api": {
+        "platform": "AWS ECS Fargate",
+        "min_instances": 2,
+        "max_instances": 10,
+        "cpu": "512",
+        "memory": "1024MB",
+        "auto_scaling": "Target CPU 60%"
+      },
+      "worker": {
+        "platform": "AWS ECS Fargate",
+        "min_instances": 2,
+        "max_instances": 20,
+        "cpu": "256",
+        "memory": "512MB",
+        "auto_scaling": "Target Redis stream lag < 1000 events"
+      },
+      "optimizer": {
+        "platform": "AWS ECS Scheduled Task or Lambda",
+        "schedule": "cron(0 2 * * ? *) — 2am UTC nightly",
+        "cpu": "1024",
+        "memory": "2048MB"
+      },
+      "web": {
+        "platform": "AWS CloudFront + S3 (static build)",
+        "build_command": "pnpm --filter web build",
+        "output_dir": "apps/web/dist"
+      }
+    },
+    "databases": {
+      "postgres": "AWS RDS PostgreSQL 16, db.t4g.medium, Multi-AZ for production",
+      "redis": "AWS ElastiCache Redis 7, cache.t4g.small, cluster mode disabled for simplicity",
+      "clickhouse": "ClickHouse Cloud (recommended) or self-managed on EC2 r6g.large"
+    },
+    "dns_ssl": "Route 53 + ACM wildcard cert. api.tokenlens.io, app.tokenlens.io",
+    "ci_cd": {
+      "on_push_main": ["Run tests", "Build Docker images", "Push to ECR", "Deploy to ECS (blue-green)", "Run smoke tests", "Notify Slack"],
+      "on_pull_request": ["Run tests", "Run type checks", "Run lint", "Preview deploy (web only)"]
+    }
+  },
+
+  "github_actions": {
+    "test_workflow": {
+      "trigger": "pull_request",
+      "jobs": {
+        "test": {
+          "runs_on": "ubuntu-latest",
+          "services": {
+            "postgres": "postgres:16-alpine",
+            "redis": "redis:7-alpine",
+            "clickhouse": "clickhouse/clickhouse-server:24"
+          },
+          "steps": ["checkout", "setup-node@v4", "pnpm install", "pnpm run db:migrate:test", "pnpm run test"]
+        }
+      }
+    },
+    "deploy_workflow": {
+      "trigger": "push to main",
+      "jobs": {
+        "deploy": {
+          "steps": [
+            "checkout",
+            "configure-aws-credentials",
+            "build and push Docker images to ECR",
+            "run Drizzle migrations",
+            "update ECS service (api, worker)",
+            "invalidate CloudFront cache (web)",
+            "smoke test"
+          ]
+        }
+      }
+    }
+  },
+
+  "mvp_build_order": {
+    "description": "Recommended order to build TokenLens from scratch to deployment-ready",
+    "phases": [
+      {
+        "phase": 1,
+        "name": "Foundation",
+        "tasks": [
+          "Init pnpm monorepo with workspaces",
+          "Create packages/shared with Zod schemas, provider pricing table, TypeScript types",
+          "Set up Docker Compose with Postgres, Redis, ClickHouse",
+          "Run ClickHouse DDL migration (llm_events table)",
+          "Run Drizzle migration for Postgres (workspaces, users, api_keys tables)"
+        ]
+      },
+      {
+        "phase": 2,
+        "name": "SDK",
+        "tasks": [
+          "Build packages/sdk — TokenLens class wrapping OpenAI client",
+          "Implement auto-tagging (feature, userId, env, traceId)",
+          "Publish event to ingest endpoint async (fire-and-forget with retry)",
+          "Add kill-switch check before forwarding call (reads Redis)",
+          "Write unit tests for SDK",
+          "Add Anthropic provider support",
+          "Publish to npm (or private registry)"
+        ]
+      },
+      {
+        "phase": 3,
+        "name": "Ingest worker",
+        "tasks": [
+          "Build apps/worker — Redis Streams consumer group",
+          "Implement enrichment: calculate USD cost from token counts using shared pricing table",
+          "Write enriched event to ClickHouse via batch insert",
+          "Implement anomaly detector (Z-score vs 7-day per-feature baseline from ClickHouse)",
+          "Implement budget guard (read budget from Postgres, increment Redis counter, set kill-switch)",
+          "Write integration tests against local Docker stack"
+        ]
+      },
+      {
+        "phase": 4,
+        "name": "API",
+        "tasks": [
+          "Build apps/api with Fastify",
+          "Auth routes (register, login, API key management)",
+          "POST /ingest/event — receive from SDK, push to Redis stream",
+          "Analytics routes — query ClickHouse for overview, feature, user, model breakdowns",
+          "Timeseries route — hourly/daily aggregation for charts",
+          "Budget CRUD routes",
+          "Alert config routes",
+          "Write tests for all routes"
+        ]
+      },
+      {
+        "phase": 5,
+        "name": "Dashboard",
+        "tasks": [
+          "Bootstrap apps/web with Vite + React + Tailwind",
+          "Auth screens (login, register)",
+          "Cost overview page with Recharts area chart",
+          "Feature breakdown table with sortable columns",
+          "Anomaly log page",
+          "Budget settings form",
+          "Responsive layout"
+        ]
+      },
+      {
+        "phase": 6,
+        "name": "Optimizer",
+        "tasks": [
+          "Build apps/optimizer Python script",
+          "Query ClickHouse for feature-level model usage patterns",
+          "Score each feature for downgrade candidacy (low complexity prompt + high volume = good candidate)",
+          "Write recommendations to Postgres recommendations table",
+          "Wire recommendations to API GET /recommendations",
+          "Show recommendations in dashboard"
+        ]
+      },
+      {
+        "phase": 7,
+        "name": "Deployment",
+        "tasks": [
+          "Write Dockerfiles for api, worker, web",
+          "Write Terraform for VPC, ECS cluster, RDS, ElastiCache, ECR",
+          "Write GitHub Actions CI/CD workflows",
+          "Set up Route 53 + ACM for api.tokenlens.io and app.tokenlens.io",
+          "Deploy to AWS, run smoke tests",
+          "Set up Prometheus + Grafana for observability"
+        ]
+      }
+    ]
+  },
+
+  "pricing_table": {
+    "description": "Token costs used by enrichment worker to calculate USD cost per event. Update monthly.",
+    "models": {
+      "gpt-4o": { "input_per_1m": 2.50, "output_per_1m": 10.00 },
+      "gpt-4o-mini": { "input_per_1m": 0.15, "output_per_1m": 0.60 },
+      "gpt-4-turbo": { "input_per_1m": 10.00, "output_per_1m": 30.00 },
+      "gpt-3.5-turbo": { "input_per_1m": 0.50, "output_per_1m": 1.50 },
+      "claude-opus-4-6": { "input_per_1m": 15.00, "output_per_1m": 75.00 },
+      "claude-sonnet-4-6": { "input_per_1m": 3.00, "output_per_1m": 15.00 },
+      "claude-haiku-4-5-20251001": { "input_per_1m": 0.80, "output_per_1m": 4.00 },
+      "gemini-1.5-pro": { "input_per_1m": 1.25, "output_per_1m": 5.00 },
+      "gemini-1.5-flash": { "input_per_1m": 0.075, "output_per_1m": 0.30 }
+    }
+  },
+
+  "testing_strategy": {
+    "sdk": "Unit tests with vitest. Mock HTTP layer, assert event payload shape and metadata tagging.",
+    "worker": "Integration tests against local Docker stack. Publish test event to Redis, assert ClickHouse row written and enriched correctly.",
+    "api": "Integration tests with Fastify inject(). Seed test workspace, call routes, assert response shapes.",
+    "optimizer": "pytest. Run against seeded ClickHouse data, assert recommendations written to Postgres.",
+    "e2e": "Playwright. Register workspace, send test SDK events, load dashboard, assert cost data visible.",
+    "coverage_target": "80% across api and worker"
+  },
+
+  "resume_talking_points": {
+    "system_design": "Designed a high-throughput async event pipeline using Redis Streams consumer groups with at-least-once delivery semantics and idempotency via traceId deduplication",
+    "database_choice": "Chose ClickHouse over Postgres for the analytical store — columnar compression and MergeTree engine deliver 100x faster time-series aggregations on the llm_events workload",
+    "sdk_design": "Published a TypeScript SDK that wraps multiple LLM provider clients with a unified interface — zero latency impact via async fire-and-forget event publishing",
+    "ml_integration": "Built a Python optimizer that analyzes per-feature prompt complexity and token distributions to identify model downgrade candidates, reducing simulated spend by 34% in test workloads",
+    "multi_tenancy": "Implemented workspace-scoped data isolation at the ClickHouse query level and Redis key level, with per-workspace API key authentication",
+    "cost_impact": "Customers reduce LLM spend 20-40% after gaining feature-level attribution visibility — framing project impact in dollar terms not just technical terms"
+  }
+}

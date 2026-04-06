@@ -1,0 +1,15 @@
+node_modules
+dist
+.turbo
+.pnpm-store
+.env
+.env.local
+.venv
+coverage
+*.log
+apps/web/dist
+apps/web/node_modules
+__pycache__
+*.pyc
+playwright-report
+test-results

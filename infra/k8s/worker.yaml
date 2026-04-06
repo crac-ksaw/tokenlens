@@ -1,0 +1,20 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tokenlens-worker
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: tokenlens-worker
+  template:
+    metadata:
+      labels:
+        app: tokenlens-worker
+    spec:
+      containers:
+        - name: worker
+          image: tokenlens-worker:latest
+          envFrom:
+            - secretRef:
+                name: tokenlens-secrets
