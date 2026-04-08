@@ -10,16 +10,6 @@
 
 TokenLens is a cost intelligence platform for teams shipping LLM features in production. It captures usage events from application code, enriches them asynchronously, stores them for analytics, and surfaces spend, anomalies, budgets, and optimization opportunities in a dashboard.
 
-## Screenshots
-
-### Cost overview
-
-![TokenLens overview dashboard](docs/assets/tokenlens-overview.svg)
-
-### Budget guardrails
-
-![TokenLens budgets dashboard](docs/assets/tokenlens-budgets.svg)
-
 ## What It Does
 
 - Tracks LLM usage per workspace, feature, user, session, model, and provider
@@ -46,7 +36,8 @@ TokenLens is organized as a pnpm monorepo with an event-driven backend:
 
 ## System Diagram
 
-![TokenLens system diagram](docs/assets/tokenlens-system-diagram.svg)
+![TokenLens system diagram](<img width="1440" height="1186" alt="image" src="https://github.com/user-attachments/assets/d2bc0d0d-2715-4861-8d95-ee23a1869f3a" />
+)
 
 ```mermaid
 flowchart LR
