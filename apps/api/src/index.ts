@@ -6,7 +6,11 @@ import { RedisEventQueue } from "./services/event-queue.js";
 
 const port = Number(process.env.PORT ?? 3001);
 const databaseUrl = process.env.DATABASE_URL;
-const jwtSecret = process.env.JWT_SECRET ?? "dev-secret";
+const jwtSecret = process.env.JWT_SECRET;
+
+if (!jwtSecret) {
+  throw new Error("FATAL: JWT_SECRET environment variable is missing.");
+}
 
 if (!databaseUrl) {
   throw new Error("DATABASE_URL is required");

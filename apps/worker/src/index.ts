@@ -107,17 +107,21 @@ class RedisCounterStore implements CounterStore {
 
   async incrementDaily(workspaceId: string, feature: string, amount: number): Promise<number> {
     const key = `tokenlens:budget:${workspaceId}:${feature}:${new Date().toISOString().slice(0, 10)}`;
-    const total = await this.redis.incrbyfloat(key, amount);
-    await this.redis.expire(key, 60 * 60 * 24 * 35);
-    return Number(total);
+    const results = await this.redis.pipeline()
+      .incrbyfloat(key, amount)
+      .expire(key, 60 * 60 * 24 * 35)
+      .exec();
+    return Number(results[0][1]);
   }
 
   async incrementMonthly(workspaceId: string, feature: string, amount: number): Promise<number> {
     const month = new Date().toISOString().slice(0, 7);
     const key = `tokenlens:budget:${workspaceId}:${feature}:${month}`;
-    const total = await this.redis.incrbyfloat(key, amount);
-    await this.redis.expire(key, 60 * 60 * 24 * 400);
-    return Number(total);
+    const results = await this.redis.pipeline()
+      .incrbyfloat(key, amount)
+      .expire(key, 60 * 60 * 24 * 400)
+      .exec();
+    return Number(results[0][1]);
   }
 
   async setKillSwitch(workspaceId: string, feature: string): Promise<void> {
@@ -149,16 +153,31 @@ async function main() {
     alertDispatcher: new MultiChannelAlertDispatcher(process.env.RESEND_API_KEY),
   });
 
-  while (true) {
-    const response = await redis.xreadgroup("GROUP", consumerGroup, consumerName, "COUNT", 10, "BLOCK", 5000, "STREAMS", streamName, ">") as any;
-    if (!response) continue;
+  async function processBatchAndAck(response: any) {
+    if (!response) return;
     for (const [, entries] of response as [string, [string, string[]][]][]) {
-      for (const [id, fields] of entries) {
-        const event = decodeEvent(fields);
-        await worker.process(event);
-        await redis.xack(streamName, consumerGroup, id);
+      const events = entries.map(([id, fields]) => ({ id, event: decodeEvent(fields) }));
+      if (events.length > 0) {
+        await worker.processBatch(events.map(e => e.event));
+        const ids = events.map(e => e.id);
+        await redis.xack(streamName, consumerGroup, ...ids);
       }
     }
+  }
+
+  let hasPending = true;
+  while (hasPending) {
+    const pel = await redis.xreadgroup("GROUP", consumerGroup, consumerName, "COUNT", 100, "STREAMS", streamName, "0") as any;
+    if (!pel || pel[0][1].length === 0) {
+      hasPending = false;
+      continue;
+    }
+    await processBatchAndAck(pel);
+  }
+
+  while (true) {
+    const response = await redis.xreadgroup("GROUP", consumerGroup, consumerName, "COUNT", 100, "BLOCK", 5000, "STREAMS", streamName, ">") as any;
+    await processBatchAndAck(response);
   }
 }
 

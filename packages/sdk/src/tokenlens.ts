@@ -49,11 +49,16 @@ class RedisKillSwitchStore implements KillSwitchStore {
   }
 
   async isEnabled(workspaceId: string, feature: string): Promise<boolean> {
-    if (this.redis.status === "wait") {
-      await this.redis.connect();
+    try {
+      if (this.redis.status === "wait") {
+        await this.redis.connect();
+      }
+      const value = await this.redis.get(`tokenlens:killswitch:${workspaceId}:${feature}`);
+      return value === "1" || value === "true";
+    } catch (error) {
+      console.warn("TokenLens: Redis kill-switch check failed, failing open.", error);
+      return false;
     }
-    const value = await this.redis.get(`tokenlens:killswitch:${workspaceId}:${feature}`);
-    return value === "1" || value === "true";
   }
 }
 
