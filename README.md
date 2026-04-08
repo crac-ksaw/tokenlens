@@ -36,7 +36,8 @@ TokenLens is organized as a pnpm monorepo with an event-driven backend:
 
 ## System Diagram
 
-[TokenLens system diagram](<img width="1440" height="1186" alt="image" src="https://github.com/user-attachments/assets/d2bc0d0d-2715-4861-8d95-ee23a1869f3a" />)
+[TokenLens system diagram](<img width="1440" height="1186" alt="image" src="https://github.com/user-attachments/assets/16e93c3f-68fb-4fb9-94af-d3ddebb2494f" />
+)
 
 ```mermaid
 flowchart LR
